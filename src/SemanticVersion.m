@@ -284,23 +284,63 @@ classdef SemanticVersion < handle
         end
         
         function [sortedObj, idx] = sort(obj)
-            % We can't use sortrows with a mix of numeric and string
-            % components. So use an admittedly inefficient bubble sort.
-            sortedObj = obj;
-            n = length(sortedObj);
+            % SORT sorts SemanticVersion objects.
+            %
+            %   B = SORT(A) sorts in ascending version order. This is beneficial 
+            %   for cases where the versions are un-sorted; If the input is already 
+            %   sorted, we start to see the O(n^2) runtime and O(log(n)) space. 
+            %   For smaller array sizes [1], we'll use insertion sort instead.
+            %
+            %   [B,I] = sort(A) returns the sort index I which indicates how A
+            %   was sorted to produce B, i.e. A(I) == B.
+            %   
+            %
+            % [1] R. Sedgewick and K. Wayne, Algorithms, Addison-Wellesley 
+            %     professional, 2011, Chapter 2.3.
+            
+            n = length(obj);
             idx = 1:n;
-            for i = 1:n-1
-                for j = 1:n-1
-                    if(sortedObj(j) > sortedObj(j+1))
-                        temp = sortedObj(j);
-                        sortedObj(j) = sortedObj(j+1);
-                        sortedObj(j+1) = temp;
-                        tempIdx = idx(j);
-                        idx(j) = idx(j+1);
-                        idx(j+1) = tempIdx;
+            if (n > 15)
+                % Q-sort.
+                idx = local_qsort(obj, idx, 1, n);
+            else
+                % insertion sort.
+                for inIdx = 1:n
+                    pivIdx = idx(inIdx);
+                    inIdx2 = inIdx-1;
+                    while(inIdx2 > 0 && obj(idx(inIdx2)) > obj(pivIdx))
+                        idx(inIdx2+1) = idx(inIdx2);
+                        inIdx2 = inIdx2 - 1;
                     end
-               end
+                    idx(inIdx2+1) = pivIdx;
+                end
             end
+            sortedObj = obj(idx);
+            
+            function inds = local_qsort(svers, inds, low, high)
+                % recurse partition...sort both sides of pivot.
+                if (low < high)
+                    [pIdx, inds] = local_partition(svers, inds, low, high);
+                    inds = local_qsort(svers, inds, low, pIdx - 1);
+                    inds = local_qsort(svers, inds, pIdx + 1, high);
+                end
+                function [pivot, inds] = local_partition(svers, inds, low, high)
+                    comp = inds(high);
+                    pivot = low-1;
+                    for subIdx = low:high
+                        if (svers(inds(subIdx)) < svers(comp)) % if lower version is smaller...
+                            pivot = pivot + 1;             % increment the samller index.
+                            temp = inds(pivot);            % swap items.
+                            inds(pivot) = inds(subIdx);
+                            inds(subIdx) = temp;
+                        end
+                    end
+                    pivot = pivot + 1;  % move pivot point.
+                    temp = inds(pivot); % swap.
+                    inds(pivot) = inds(high);
+                    inds(high) = temp;
+                end % local_partition
+            end % local_qsort
         end
     end
 end
